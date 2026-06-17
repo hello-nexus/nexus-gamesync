@@ -15,6 +15,7 @@
 #include <winhttp.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #pragma comment(lib, "winhttp")
 
 typedef LONG RZRESULT; /* 0 == RZRESULT_SUCCESS */
@@ -50,11 +51,14 @@ static volatile LONG g_haveToken;
 /* Extract the token value from a /pair JSON body: {"token":"..."} (camel or Pascal). */
 static int parse_token(const char *json, char *out, int cap)
 {
-    const char *p = strstr(json, "token");
+    /* Match the "token" KEY (quoted) so fields like refresh_token/tokenExpiry don't fool us. */
+    const char *p = strstr(json, "\"token\"");
     int i = 0;
     if (!p) return 0;
-    p += 5;
-    while (*p == '"' || *p == ' ' || *p == ':') p++; /* step over `":"` to the value */
+    p += 7;
+    while (*p && *p != ':') p++; /* to the colon after the key */
+    if (*p == ':') p++;
+    while (*p == ' ' || *p == '"') p++; /* to the value */
     while (p[i] && p[i] != '"' && i < cap - 1) { out[i] = p[i]; i++; }
     out[i] = 0;
     return i > 0;
@@ -168,6 +172,25 @@ static void ensure_worker(void)
     }
 }
 
+/* ---------------- debug logging (build with /DSHIM_LOG; off in production) ---------------- */
+#ifdef SHIM_LOG
+static void slog_impl(const char *fmt, ...)
+{
+    EnterCriticalSection(&g_cs);
+    FILE *f = fopen("C:\\Users\\nicol\\chroma-stub\\gamesync-shim.log", "a");
+    if (f) {
+        SYSTEMTIME st; GetLocalTime(&st);
+        fprintf(f, "[%02d:%02d:%02d.%03d] ", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+        va_list ap; va_start(ap, fmt); vfprintf(f, fmt, ap); va_end(ap);
+        fputc('\n', f); fclose(f);
+    }
+    LeaveCriticalSection(&g_cs);
+}
+#define SLOG(...) slog_impl(__VA_ARGS__)
+#else
+#define SLOG(...) ((void)0)
+#endif
+
 /* ---------------- capture ---------------- */
 
 static void store_kbd(long id, int rows, int cols, const void *colors)
@@ -200,33 +223,55 @@ static long next_id(GUID *pEffectId)
     return id;
 }
 
-RZRESULT Init(void) { ensure_worker(); return 0; }
-RZRESULT InitSDK(void *pAppInfo) { (void)pAppInfo; ensure_worker(); return 0; }
-RZRESULT UnInit(void) { return 0; }
+RZRESULT Init(void) { SLOG("Init()"); ensure_worker(); return 0; }
+RZRESULT InitSDK(void *pAppInfo)
+{
+    SLOG("InitSDK()");
+    if (pAppInfo) { __try { SLOG("  app=\"%ls\"", (wchar_t *)pAppInfo); } __except (EXCEPTION_EXECUTE_HANDLER) {} }
+    ensure_worker();
+    return 0;
+}
+RZRESULT UnInit(void) { SLOG("UnInit()"); return 0; }
 
 RZRESULT CreateEffect(GUID DeviceId, int Effect, void *pParam, GUID *pEffectId)
-{ (void)DeviceId; (void)Effect; (void)pParam; next_id(pEffectId); return 0; }
+{ (void)pParam; SLOG("CreateEffect(dev=%08lX, effect=%d)", DeviceId.Data1, Effect); next_id(pEffectId); return 0; }
 
 RZRESULT CreateKeyboardEffect(int Effect, void *pParam, GUID *pEffectId)
 {
     long id = next_id(pEffectId);
-    if (pParam) {
-        if (Effect == 2 || Effect == 7) store_kbd(id, 6, 22, pParam); /* CUSTOM / CUSTOM_KEY */
-        else if (Effect == 8) store_kbd(id, 8, 24, pParam);           /* CUSTOM2 */
+    int rows = 0, cols = 0;
+    SLOG("CreateKeyboardEffect(effect=%d) id=%ld", Effect, id);
+    if (Effect == 2 || Effect == 7) { rows = 6; cols = 22; } /* CUSTOM / CUSTOM_KEY */
+    else if (Effect == 8) { rows = 8; cols = 24; }           /* CUSTOM2 */
+    if (pParam && rows) {
+        store_kbd(id, rows, cols, pParam);
+        /* Some games apply on create and never call SetEffect (Dead Cells
+         * re-creates the keyboard effect each frame). Publish on create so those
+         * forward; SetEffect still drives create-once/set-cycle games (Cyberpunk). */
+        int slot = (int)(((unsigned long)id) % KB_CAP);
+        EnterCriticalSection(&g_cs);
+        if (g_kbValid[slot] && g_kbId[slot] == id) {
+            g_curRows = rows; g_curCols = cols;
+            memcpy(g_curColors, g_kbColors[slot], (size_t)(rows * cols * 3));
+            InterlockedExchange(&g_dirty, 1);
+            SetEvent(g_frameEvent);
+        }
+        LeaveCriticalSection(&g_cs);
     }
     return 0;
 }
 
-RZRESULT CreateMouseEffect(int Effect, void *pParam, GUID *pEffectId) { (void)Effect; (void)pParam; next_id(pEffectId); return 0; }
-RZRESULT CreateHeadsetEffect(int Effect, void *pParam, GUID *pEffectId) { (void)Effect; (void)pParam; next_id(pEffectId); return 0; }
-RZRESULT CreateMousepadEffect(int Effect, void *pParam, GUID *pEffectId) { (void)Effect; (void)pParam; next_id(pEffectId); return 0; }
-RZRESULT CreateKeypadEffect(int Effect, void *pParam, GUID *pEffectId) { (void)Effect; (void)pParam; next_id(pEffectId); return 0; }
-RZRESULT CreateChromaLinkEffect(int Effect, void *pParam, GUID *pEffectId) { (void)Effect; (void)pParam; next_id(pEffectId); return 0; }
+RZRESULT CreateMouseEffect(int Effect, void *pParam, GUID *pEffectId) { (void)pParam; SLOG("CreateMouseEffect(effect=%d)", Effect); next_id(pEffectId); return 0; }
+RZRESULT CreateHeadsetEffect(int Effect, void *pParam, GUID *pEffectId) { (void)pParam; SLOG("CreateHeadsetEffect(effect=%d)", Effect); next_id(pEffectId); return 0; }
+RZRESULT CreateMousepadEffect(int Effect, void *pParam, GUID *pEffectId) { (void)pParam; SLOG("CreateMousepadEffect(effect=%d)", Effect); next_id(pEffectId); return 0; }
+RZRESULT CreateKeypadEffect(int Effect, void *pParam, GUID *pEffectId) { (void)pParam; SLOG("CreateKeypadEffect(effect=%d)", Effect); next_id(pEffectId); return 0; }
+RZRESULT CreateChromaLinkEffect(int Effect, void *pParam, GUID *pEffectId) { (void)pParam; SLOG("CreateChromaLinkEffect(effect=%d)", Effect); next_id(pEffectId); return 0; }
 
 RZRESULT SetEffect(GUID EffectId)
 {
     long id = (long)EffectId.Data1;
     int slot = (int)(((unsigned long)id) % KB_CAP);
+    int fwd = 0;
     ensure_worker();
     EnterCriticalSection(&g_cs);
     if (g_kbValid[slot] && g_kbId[slot] == id) {
@@ -235,8 +280,10 @@ RZRESULT SetEffect(GUID EffectId)
         memcpy(g_curColors, g_kbColors[slot], (size_t)(g_curRows * g_curCols * 3));
         InterlockedExchange(&g_dirty, 1);
         SetEvent(g_frameEvent);
+        fwd = 1;
     }
     LeaveCriticalSection(&g_cs);
+    SLOG("SetEffect(id=%ld) fwd=%d", id, fwd);
     return 0;
 }
 
@@ -244,15 +291,15 @@ RZRESULT DeleteEffect(GUID EffectId) { (void)EffectId; return 0; }
 
 RZRESULT QueryDevice(GUID DeviceId, void *pInfo)
 {
-    (void)DeviceId;
+    SLOG("QueryDevice(dev=%08lX)", DeviceId.Data1);
     if (pInfo) { __try { ((DWORD *)pInfo)[0] = 1; ((DWORD *)pInfo)[1] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {} }
     return 0;
 }
 
 RZRESULT RegisterEventNotification(void *hWnd) { (void)hWnd; return 0; }
 RZRESULT UnregisterEventNotification(void) { return 0; }
-RZRESULT IsActive(int *pActive) { if (pActive) { __try { *pActive = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {} } return 0; }
-RZRESULT IsConnected(void *pDeviceInfo) { if (pDeviceInfo) { __try { ((DWORD *)pDeviceInfo)[0] = 1; ((DWORD *)pDeviceInfo)[1] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {} } return 0; }
+RZRESULT IsActive(int *pActive) { SLOG("IsActive()"); if (pActive) { __try { *pActive = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {} } return 0; }
+RZRESULT IsConnected(void *pDeviceInfo) { SLOG("IsConnected()"); if (pDeviceInfo) { __try { ((DWORD *)pDeviceInfo)[0] = 1; ((DWORD *)pDeviceInfo)[1] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {} } return 0; }
 RZRESULT SetEventName(const wchar_t *Name) { (void)Name; return 0; }
 
 BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r)
@@ -262,6 +309,7 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r)
         DisableThreadLibraryCalls(h);
         InitializeCriticalSection(&g_cs);
         g_frameEvent = CreateEventW(NULL, FALSE, FALSE, NULL); /* auto-reset */
+        SLOG("==== loaded pid=%lu ====", GetCurrentProcessId());
     } else if (reason == DLL_PROCESS_DETACH) {
         g_stop = 1;
         if (g_frameEvent) SetEvent(g_frameEvent);

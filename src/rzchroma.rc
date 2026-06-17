@@ -15,12 +15,12 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "Razer Inc."
-            VALUE "FileDescription", "Razer Chroma SDK"
+            VALUE "CompanyName", "Nexus"
+            VALUE "FileDescription", "Nexus Chroma Shim"
             VALUE "FileVersion", "3.20.0.0"
-            VALUE "InternalName", "RzChromaSDK64"
-            VALUE "OriginalFilename", "RzChromaSDK64.dll"
-            VALUE "ProductName", "Razer Chroma SDK"
+            VALUE "InternalName", "RzChromaSDK"
+            VALUE "OriginalFilename", "RzChromaSDK.dll"
+            VALUE "ProductName", "Nexus Game Sync"
             VALUE "ProductVersion", "3.20.0.0"
         END
     END

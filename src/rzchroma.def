@@ -1,4 +1,3 @@
-LIBRARY RzChromaSDK64
 EXPORTS
     Init
     InitSDK
