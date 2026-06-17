@@ -1,0 +1,8 @@
+dist/
+*.obj
+*.exp
+*.lib
+*.res
+*.pdb
+*.ilk
+*.exe
