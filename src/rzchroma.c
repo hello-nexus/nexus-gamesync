@@ -46,6 +46,10 @@ static volatile LONG g_stop;
 static char g_token[128];
 static volatile LONG g_haveToken;
 
+/* Source app title from InitSDK, sanitized to JSON-safe ASCII; empty when the
+   game used Init() with no title. Set once at init, before frames flow. */
+static char g_appTitle[96];
+
 /* ---------------- forwarding worker ---------------- */
 
 /* Extract the token value from a /pair JSON body: {"token":"..."} (camel or Pascal). */
@@ -98,12 +102,27 @@ static DWORD http_req(HINTERNET hConnect, const wchar_t *verb, const wchar_t *pa
     return status;
 }
 
+/* Copy a wide title into g_appTitle as JSON-safe ASCII: drop non-printable,
+   non-ASCII, and the JSON metacharacters " and \, so it embeds without escaping. */
+static void capture_app_title(const wchar_t *w)
+{
+    if (!w) return;
+    __try {
+        int o = 0, i;
+        for (i = 0; w[i] && o < (int)sizeof(g_appTitle) - 1; i++) {
+            wchar_t c = w[i];
+            if (c >= 0x20 && c < 0x7F && c != '"' && c != '\\') g_appTitle[o++] = (char)c;
+        }
+        g_appTitle[o] = 0;
+    } __except (EXCEPTION_EXECUTE_HANDLER) { g_appTitle[0] = 0; }
+}
+
 static int build_frame_json(int rows, int cols, const unsigned char *colors, char *out, int cap)
 {
     int n = rows * cols, i, len;
     len = _snprintf_s(out, cap, _TRUNCATE,
-                      "{\"device\":\"keyboard\",\"effect\":\"CHROMA_CUSTOM\",\"rows\":%d,\"cols\":%d,\"colors\":[",
-                      rows, cols);
+                      "{\"device\":\"keyboard\",\"effect\":\"CHROMA_CUSTOM\",\"app\":\"%s\",\"rows\":%d,\"cols\":%d,\"colors\":[",
+                      g_appTitle, rows, cols);
     if (len < 0) return -1;
     for (i = 0; i < n; i++) {
         unsigned int cr = (unsigned int)colors[i * 3] | ((unsigned int)colors[i * 3 + 1] << 8) | ((unsigned int)colors[i * 3 + 2] << 16);
@@ -227,7 +246,7 @@ RZRESULT Init(void) { SLOG("Init()"); ensure_worker(); return 0; }
 RZRESULT InitSDK(void *pAppInfo)
 {
     SLOG("InitSDK()");
-    if (pAppInfo) { __try { SLOG("  app=\"%ls\"", (wchar_t *)pAppInfo); } __except (EXCEPTION_EXECUTE_HANDLER) {} }
+    if (pAppInfo) { capture_app_title((const wchar_t *)pAppInfo); SLOG("  app=\"%s\"", g_appTitle); }
     ensure_worker();
     return 0;
 }
