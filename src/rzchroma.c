@@ -1,4 +1,4 @@
-/* nexus-chroma — Razer Chroma capture shim.
+/* nexus-chroma - Razer Chroma capture shim.
  *
  * Built as RzChromaSDK64.dll (and RzChromatic64.dll); a Chroma game's
  * CChromaEditorLibrary loads it in place of Razer's SDK. We implement the SDK

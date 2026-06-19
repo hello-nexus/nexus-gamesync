@@ -1,6 +1,6 @@
 /* Proves system-wide (Model-A) resolution + forwarding without a game: load
  * RzChromaSDK.dll by BARE NAME (so the OS resolves it from System32 for x64 or
- * SysWOW64 for x86 — exactly as a game's binding does), report where it loaded
+ * SysWOW64 for x86 - exactly as a game's binding does), report where it loaded
  * from, then push a GREEN frame. Build x86 to test the SysWOW64/32-bit path
  * (Dead Cells), x64 for the System32 path (Cyberpunk). */
 #include <windows.h>
