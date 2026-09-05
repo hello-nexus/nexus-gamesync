@@ -49,9 +49,6 @@ service render rate). Colours go on the wire as COLORREF `0x00BBGGRR`.
 - `build.bat` - x64 MSVC build of all three shims -> `dist/`.
 - `build32.bat` - x86 MSVC build of all three shims -> `dist/x86/`.
 - `build32dbg.bat` - x86 debug Chroma build with `/DSHIM_LOG`.
-- `install/deploy-system32.ps1` - dev helper to stage both arches into
-  System32/SysWOW64 (production install is service-managed by nexus-service,
-  which claims the DLLs by version-resource `CompanyName == "Nexus"`).
 - `test/` - dev harnesses (`loadtest.c` LightFX+Logitech load/forward;
   `selftest_fwd.c` / `editortest.c` Chroma; `modlist.c` 32-bit module enumerator).
 - `THIRD-PARTY.md` - MIT attribution for Aurora-Wrappers + vendor-header notes.
