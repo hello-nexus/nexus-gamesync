@@ -69,6 +69,16 @@ each because which one a game's editor lib loads is build-specific.
 
 ## Legal
 
-Clean-room reimplementations of the SDK surfaces; they link no vendor code. See
-`THIRD-PARTY.md`. The vendor SDK EULAs have not been reviewed - read them before
-any public/commercial distribution.
+Clean-room reimplementations of the documented SDK export surfaces; they link no
+vendor code and redistribute no vendor headers. Razer Chroma, Alienware/Dell
+LightFX and Logitech are trademarks of their respective owners; this project is
+not affiliated with or endorsed by any of them. See `THIRD-PARTY.md` for
+attribution.
+
+## License
+
+`nexus-gamesync` is licensed under the **GNU Affero General Public License v3.0**
+(AGPL-3.0); see [`LICENSE`](LICENSE) for the full text. Contributions are covered
+by [`CLA.md`](CLA.md) - see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+Copyright (C) 2026 Hello Nexus
