@@ -7,7 +7,14 @@ REM   dist\x86\RzChromaSDK.dll (+ RzChromatic.dll copy)              - Razer Chr
 REM   dist\x86\LightFX.dll                                            - Alienware/Dell LightFX
 REM   dist\x86\LogitechLedEnginesWrapper.dll (+ LogitechLed.dll copy) - Logitech
 setlocal
-call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x86 >nul
+REM MSVC lives at the Build Tools path on the lab PCs and under a full Visual
+REM Studio on CI runners; vswhere finds either.
+set "VCVARS=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+if not exist "%VCVARS%" (
+  for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VCVARS=%%i\VC\Auxiliary\Build\vcvarsall.bat"
+)
+if not exist "%VCVARS%" ( echo NO_MSVC & exit /b 1 )
+call "%VCVARS%" x86 >nul
 cd /d %~dp0
 if not exist dist\x86 mkdir dist\x86
 
